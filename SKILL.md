@@ -158,6 +158,56 @@ Clean up the test memory:
 hebbs-cli forget --entity-id _system
 ```
 
+## Policy bootstrap
+
+On the first substantive interaction with a new user, check whether a memory policy exists:
+
+```
+hebbs-cli recall "memory policy" --entity-id _policy --top-k 1 --format json
+```
+
+If results are returned, load the policy and apply it for the session. Do not re-ask.
+
+If no results are returned, and the user's message is substantive (not a smoke test or "hello"), ask for a brief memory policy:
+
+> HEBBS is your memory system. Before I start using it, I'd like to understand your preferences. This takes about 30 seconds and I'll only ask once.
+>
+> 1. **What should I store?** (e.g., preferences, decisions, project context, corrections, everything)
+> 2. **What should I NOT store?** (e.g., personal info, credentials, temporary thoughts, nothing off-limits)
+> 3. **Should I store proactively** when you mention something, or **only when you explicitly ask** me to remember?
+> 4. **Any privacy boundaries?** (e.g., no names of other people, no financial info)
+> 5. **Should I mirror important memories to file memory** as a backup, or keep everything in HEBBS only?
+>
+> If you'd rather skip this, I'll use sensible defaults.
+
+Store each answer as a separate memory under entity `_policy` with importance 0.95:
+
+```
+hebbs-cli remember "Store policy: [user's answer]" --importance 0.95 --entity-id _policy --format json
+hebbs-cli remember "Exclude policy: [user's answer]" --importance 0.95 --entity-id _policy --format json
+hebbs-cli remember "Storage mode: [proactive|explicit-only]" --importance 0.95 --entity-id _policy --format json
+hebbs-cli remember "Privacy policy: [user's answer]" --importance 0.95 --entity-id _policy --format json
+hebbs-cli remember "Mirror policy: [hebbs-only|mirror-to-files]" --importance 0.95 --entity-id _policy --format json
+```
+
+If the user skips setup, store the defaults:
+
+```
+hebbs-cli remember "Memory policy: defaults active — store preferences and decisions proactively, skip sensitive personal info and credentials, HEBBS-only storage, no file mirroring" --importance 0.95 --entity-id _policy --format json
+```
+
+**Default policy** (when user skips):
+
+| Setting | Default |
+|---|---|
+| What to store | Preferences, decisions, corrections, project context |
+| What not to store | Credentials, API keys, sensitive personal info |
+| Storage mode | Proactive |
+| Privacy | No credentials or secrets |
+| File mirroring | HEBBS-only |
+
+**Policy updates:** If the user later says "update my memory policy" or changes a preference about storage behavior, overwrite the relevant `_policy` memory.
+
 ## Before every command
 
 Check the server is healthy before running any `hebbs-cli` command:
@@ -168,7 +218,9 @@ hebbs-cli status --format json 2>&1
 
 If `status` shows `SERVING`, proceed normally.
 
-If not, run Phase 2 and Phase 3 from the first-run setup above.
+If this is the first substantive interaction of a session, also check `_policy` entity and run the policy bootstrap above if no policy is found.
+
+If status is not serving, run Phase 2 and Phase 3 from the first-run setup above.
 
 ## Operations
 
@@ -324,7 +376,7 @@ Returns a blend of recent + relevant memories for an entity. Use at the start of
 
 ## Decision guide
 
-1. **Start of conversation**: Always `hebbs-cli prime <entity>` to load context. Do this before the first reply. Do this even if you loaded context from file memory — HEBBS may have memories that file memory does not.
+1. **Start of conversation**: Always `hebbs-cli prime <entity>` to load context. Do this before the first reply. Do this even if you loaded context from file memory — HEBBS may have memories that file memory does not. Then check for memory policy (`_policy` entity) — if missing and the interaction is substantive, run the policy bootstrap.
 2. **Before answering any question about past context**: `hebbs-cli recall` with the question as cue. Do not answer from general knowledge when HEBBS might have the answer.
 3. **User shares a fact, preference, or decision**: `hebbs-cli remember` immediately with appropriate importance (0.8+ for preferences and decisions). Do this unconditionally — even if you already know the fact from another source. Knowing is not storing.
 4. **User corrects something**: `hebbs-cli remember` the correction with importance 0.9. Old conflicting memories will naturally decay.
