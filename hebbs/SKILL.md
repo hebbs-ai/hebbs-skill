@@ -71,6 +71,18 @@ When storing new information:
 1. Write to HEBBS immediately (`hebbs-cli remember`)
 2. Optionally mirror critical facts to file memory for durability
 
+## Capability tiers
+
+HEBBS works in layers. Each layer works independently:
+
+| Tier | What works | Requirements |
+|---|---|---|
+| **Basic memory** | `remember`, `recall`, `forget`, `prime` | Server running |
+| **Semantic recall** | Similarity, temporal, causal, analogical strategies | Server running (ONNX embedder included) |
+| **Reflection / insights** | `reflect-prepare` + `reflect-commit`, `insights` | Server running + agent acts as the LLM (no API key needed) |
+
+All tiers work out of the box with just the server running. No external LLM or API key is required — the agent (you) provides the reasoning for reflection.
+
 ## Before every command
 
 Check the server is healthy before running any `hebbs-cli` command:
@@ -79,20 +91,31 @@ Check the server is healthy before running any `hebbs-cli` command:
 hebbs-cli status --format json 2>&1
 ```
 
-This checks:
-- Server is reachable
-- Data directory exists on disk
-- Storage engine can read/write
+If `status` shows `SERVING`, proceed normally.
 
-If `status` shows `NOT_SERVING` or a connection error, start the server in the background:
+If `status` fails with a connection error or shows `NOT_SERVING`, follow this startup sequence:
 
+1. Ensure the data directory exists:
 ```
-HEBBS_AUTH_ENABLED=false nohup hebbs-server start --data-dir ~/.hebbs/data > /tmp/hebbs-server.log 2>&1 &
+mkdir -p ~/.hebbs/data
 ```
 
-Wait 15 seconds for the ONNX embedder to initialize, then retry.
+2. Start the server (prefer `brew services` if available, otherwise nohup):
+```
+brew services start hebbs 2>/dev/null || HEBBS_AUTH_ENABLED=false nohup hebbs-server start --data-dir ~/.hebbs/data > /tmp/hebbs-server.log 2>&1 &
+```
 
-If `status` returns `NOT_SERVING` after the server is running, the data directory (`~/.hebbs/data`) may be missing or unwritable. Check it exists and restart the server.
+3. The ONNX embedding model takes time to initialize on first start. Retry status up to 5 times with 5-second intervals:
+```
+for i in 1 2 3 4 5; do sleep 5; hebbs-cli status --format json 2>&1 && break; done
+```
+
+4. If still not serving after 25 seconds, check the log:
+```
+cat /tmp/hebbs-server.log | tail -20
+```
+
+Common causes: data directory missing or unwritable, port 6380 already in use.
 
 Do not proceed with other HEBBS commands until `status` shows `SERVING`.
 
@@ -110,21 +133,21 @@ Or on any platform (Linux, macOS):
 curl -sSf https://hebbs.ai/install | sh
 ```
 
-The server must be running before using any `hebbs-cli` command. Start it with auth disabled:
+## Quick setup (one command)
+
+Install, start, and verify in one shot:
 
 ```
-HEBBS_AUTH_ENABLED=false hebbs-server start --data-dir ~/.hebbs/data
+brew install hebbs-ai/tap/hebbs && brew services start hebbs && sleep 10 && hebbs-cli status --format json
 ```
 
-To run in the background:
+If `brew services` is not available (e.g., non-Homebrew install), use:
 
 ```
-HEBBS_AUTH_ENABLED=false nohup hebbs-server start --data-dir ~/.hebbs/data > /tmp/hebbs-server.log 2>&1 &
+mkdir -p ~/.hebbs/data && HEBBS_AUTH_ENABLED=false nohup hebbs-server start --data-dir ~/.hebbs/data > /tmp/hebbs-server.log 2>&1 & sleep 10 && hebbs-cli status --format json
 ```
 
-This starts the gRPC server on port 6380 and HTTP on port 6381. Data is stored in `~/.hebbs/data`.
-
-Before running commands, verify the server is reachable: `hebbs-cli recall "test" --format json 2>&1`. If connection is refused, the server is not running.
+The server listens on gRPC port 6380 and HTTP port 6381. Data is stored in `~/.hebbs/data` (Homebrew) or the configured `--data-dir`.
 
 ## Operations
 
