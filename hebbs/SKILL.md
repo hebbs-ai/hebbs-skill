@@ -1,7 +1,7 @@
 ---
 name: hebbs
 description: Cognitive memory engine — remember, recall, reflect, and forget knowledge with HEBBS.
-homepage: https://hebbs.dev
+homepage: https://hebbs.ai
 metadata:
   {
     "openclaw":
