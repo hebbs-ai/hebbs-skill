@@ -26,6 +26,22 @@ metadata:
 
 HEBBS is a local-first memory engine. It stores, indexes, and retrieves knowledge using multiple recall strategies and can consolidate raw memories into higher-order insights through reflection.
 
+## Before every command
+
+Check the server is reachable before running any `hebbs-cli` command:
+
+```
+hebbs-cli recall "test" --format json 2>&1
+```
+
+If you see a connection error, start the server in the background:
+
+```
+HEBBS_AUTH_ENABLED=false nohup hebbs-server --data-dir ~/.hebbs/data > /tmp/hebbs-server.log 2>&1 &
+```
+
+Wait 2 seconds, then retry. Do not proceed until the server responds.
+
 ## Prerequisites
 
 Install HEBBS via Homebrew or the install script:
